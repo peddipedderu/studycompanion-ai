@@ -99,3 +99,19 @@ The BKT model tracks P(know) per topic using:
 - **P(guess)** = 0.25 (25% chance to guess correctly when not knowing)
 
 Topics with P(know) < 60% are flagged as weak and targeted in future quizzes.
+
+## What we learned
+
+- **Multimodal Grounding is More Than Raw OCR**: Simply converting lecture slides or textbook pages to flat text strips away essential visual context (e.g., biological cycles, system architectures, chemical formulas). Augmenting extracted page images with vision-language summaries before embedding dramatically boosted retrieval faithfulness and precision.
+- **Probabilistic Modeling Outperforms Static Heuristics**: Traditional quiz systems either use random selection or naive difficulty tiers. Integrating Bayesian Knowledge Tracing (BKT) provided mathematical confidence in learner state transitions, allowing the companion to naturally account for accidental slips ($P(S) = 0.10$) and lucky guesses ($P(G) = 0.25$).
+- **The Value of Explicit Guardrail Rejections**: General LLMs default to trying to be helpful by answering everything, even when out of syllabus. Enforcing a strict refusal protocol for out-of-curriculum queries was essential to guaranteeing that the study companion remains a dependable, syllabus-grounded academic tool rather than a distraction.
+- **Deduplication Requires Normalization**: LLMs frequently regenerate functionally identical questions with minor phrasing alterations. Establishing a cryptographic fingerprinting pipeline across past student interaction records is critical for preventing question repetition across continuous study sessions.
+
+## What's next for StudyCompanion AI – Source-Grounded Multimodal Tutor
+
+- **Automated Visual Concept & Prerequisite Knowledge Graphs**: Build interactive DAG visualizations (directed acyclic graphs) showing conceptual dependencies, topic hierarchies, and optimal learning pathways directly derived from ingested course materials.
+- **Spaced Repetition & Exam Countdown Schedules**: Combine the Bayesian Knowledge Tracing engine with the Ebbinghaus forgetting curve and SuperMemo SM-2 spaced repetition algorithms to generate customized daily revision schedules leading up to exam dates.
+- **Multimodal Audio Briefs & Interactive Voice Tutoring**: Implement voice-driven tutor interactions and 2-minute synthesized audio summaries targeted specifically at a student's weakest topics for on-the-go review.
+- **Indian-Language & Mixed-Language Support (Hinglish/Regional)**: Support bilingual explanation modes (e.g., English textbooks and lectures explained with conversational Hindi/Hinglish audio and text) to dramatically broaden educational access across diverse student cohorts.
+- **Automatic Flashcard & Cheat Sheet Generation**: One-click generation of exportable Anki decks, targeted formula cheat sheets, and diagnostic practice exams tailored to weak concept clusters.
+
