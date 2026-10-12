@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudyCompanion AI – Multimodal Study Tutor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<style>
+  [x-cloak] { display: none !important; }
+  body { background: #0f172a; }
+  .sidebar-gradient { background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); }
+  .card { background: #1e293b; border: 1px solid #334155; }
+  .card-hover { transition: all 0.2s; }
+  .card-hover:hover { border-color: #6366f1; transform: translateY(-1px); }
+  .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+  .btn-primary:hover { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+  .chat-user { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+  .chat-ai { background: #1e293b; border: 1px solid #334155; }
+  .upload-zone { border: 2px dashed #475569; transition: all 0.3s; }
+  .upload-zone.dragover, .upload-zone:hover { border-color: #6366f1; background: rgba(99,102,241,0.05); }
+  .mastery-fill { transition: width 1.2s cubic-bezier(0.4,0,0.2,1); }
+  .fade-in { animation: fadeIn 0.4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .dot-bounce div { animation: bounce 1.4s infinite; }
+  .dot-bounce div:nth-child(2) { animation-delay: 0.2s; }
+  .dot-bounce div:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:scale(0);} 40%{transform:scale(1);} }
+  .spinner { border: 2px solid #334155; border-top-color: #6366f1; border-radius: 50%; width:18px; height:18px; animation: spin 0.7s linear infinite; display:inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  ::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-track { background:#0f172a; } ::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
+  .nav-active { background: rgba(99,102,241,0.15); border-left: 3px solid #6366f1; }
+  .nav-item { border-left: 3px solid transparent; }
+  .badge { font-size: 0.65rem; }
+  .topic-chip { cursor: pointer; user-select: none; transition: all 0.15s; }
+</style>
+</head>
+<body class="text-slate-100 min-h-screen" x-data="studyApp()" x-init="init()" x-cloak>
+
+<div class="flex h-screen overflow-hidden">
+
+  <!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
+  <aside class="w-64 sidebar-gradient border-r border-slate-800 flex flex-col flex-shrink-0">
+    <!-- Logo -->
+    <div class="p-5 border-b border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 btn-primary rounded-2xl flex items-center justify-center text-xl shadow-lg shadow-indigo-900/30">🎓</div>
+        <div>
+          <h1 class="font-bold text-white text-base leading-tight">StudyCompanion</h1>
+          <p class="text-xs text-slate-500">AI-Powered Tutor</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 p-3 space-y-1">
+      <template x-for="tab in navTabs" :key="tab.id">
+        <button @click="switchTab(tab.id)"
+          :class="activeTab === tab.id ? 'nav-active text-indigo-300' : 'nav-item text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'"
+          class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-left">
+          <span class="text-base" x-text="tab.icon"></span>
+          <span x-text="tab.name"></span>
+          <template x-if="tab.id === 'quiz' && quizSession && !quizResults">
+            <span class="ml-auto bg-indigo-600 text-white badge px-1.5 py-0.5 rounded-full">Live</span>
+          </template>
+        </button>
+      </template>
+    </nav>
+
+    <!-- Student card -->
+    <div class="p-3 border-t border-slate-800">
+      <div class="bg-slate-800/50 rounded-xl p-3">
+        <p class="text-xs text-slate-500 mb-1">Student ID</p>
+        <p class="text-xs font-mono text-indigo-400 truncate" x-text="studentId"></p>
+        <div class="flex items-center justify-between mt-2">
+          <span class="text-xs text-slate-500">Sessions</span>
+          <span class="text-xs font-bold text-slate-300" x-text="learnerProfile.sessions_count || 0"></span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN CONTENT ══════════════════════════════════════════════════════ -->
+  <main class="flex-1 overflow-hidden flex flex-col">
+
+    <!-- ── DASHBOARD ──────────────────────────────────────────────────────── -->
+    <div x-show="activeTab === 'dashboard'" class="flex-1 overflow-y-auto p-8 fade-in">
+      <div class="max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-8">
+          <div>
+            <h2 class="text-2xl font-bold text-white">Dashboard</h2>
+            <p class="text-slate-400 text-sm mt-0.5">Your learning overview</p>
+          </div>
+          <button @click="loadDashboard()" class="text-slate-400 hover:text-slate-200 text-sm flex items-center gap-1.5">
+            <span>↻</span> Refresh
+          </button>
+        </div>
+
+        <!-- Stats row -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div class="card rounded-2xl p-5 card-hover">
+            <p class="text-slate-400 text-xs mb-1">📚 Documents</p>
+            <p class="text-3xl font-bold text-indigo-400" x-text="dashboard.documents_count ?? '—'"></p>
+            <p class="text-xs text-slate-500 mt-1">uploaded files</p>
+          </div>
+          <div class="card rounded-2xl p-5 card-hover">
+            <p class="text-slate-400 text-xs mb-1">🧩 Chunks</p>
+            <p class="text-3xl font-bold text-purple-400" x-text="dashboard.chunks_count ?? '—'"></p>
+            <p class="text-xs text-slate-500 mt-1">knowledge pieces</p>
+          </div>
+          <div class="card rounded-2xl p-5 card-hover">
+            <p class="text-slate-400 text-xs mb-1">📝 Quizzes</p>
+            <p class="text-3xl font-bold text-emerald-400" x-text="dashboard.quiz_sessions ?? '—'"></p>
+            <p class="text-xs text-slate-500 mt-1">completed</p>
+          </div>
+          <div class="card rounded-2xl p-5 card-hover">
+            <p class="text-slate-400 text-xs mb-1">🧠 Avg Mastery</p>
+            <p class="text-3xl font-bold text-amber-400" x-text="(dashboard.avg_mastery ?? 0) + '%'"></p>
+            <p class="text-xs text-slate-500 mt-1">BKT estimate</p>
+          </div>
+        </div>
+
+        <!-- Mastery bars -->
+        <div class="card rounded-2xl p-6 mb-6">
+          <h3 class="font-semibold text-white mb-4 flex items-center gap-2">
+            <span>📊</span> Topic Mastery (Bayesian Knowledge Tracing)
+          </h3>
+          <template x-if="Object.keys(dashboard.mastery_by_topic || {}).length === 0">
+            <div class="text-center py-8">
+              <p class="text-4xl mb-3">📖</p>
+              <p class="text-slate-400 text-sm">Upload materials and take quizzes to track mastery.</p>
+            </div>
+          </template>
+          <div class="space-y-4">
+            <template x-for="[topic, pct] in Object.entries(dashboard.mastery_by_topic || {})" :key="topic">
+              <div>
+                <div class="flex justify-between text-sm mb-1.5">
+                  <span class="text-slate-300" x-text="topic"></span>
+                  <span class="font-bold"
+                    :class="pct >= 80 ? 'text-emerald-400' : pct >= 60 ? 'text-amber-400' : 'text-red-400'"
+                    x-text="pct + '%'"></span>
+                </div>
+                <div class="bg-slate-800 rounded-full h-2.5">
+                  <div class="mastery-fill rounded-full h-2.5"
+                    :style="'width:' + pct + '%'"
+                    :class="pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500'">
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Weak topics alert -->
+        <template x-if="(dashboard.weak_topics || []).length > 0">
+          <div class="bg-red-950/30 border border-red-800/30 rounded-2xl p-5">
+            <h3 class="font-semibold text-red-400 mb-3 flex items-center gap-2">
+              <span>⚠️</span> Weak Topics – Review These
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="t in dashboard.weak_topics" :key="t">
+                <span @click="switchTab('quiz'); selectedTopics=[t]"
+                  class="bg-red-900/40 text-red-300 border border-red-800/30 px-3 py-1 rounded-full text-sm cursor-pointer hover:bg-red-800/40 transition-all"
+                  x-text="t"></span>
+              </template>
+            </div>
+            <p class="text-xs text-slate-500 mt-3">Click a topic to start a targeted quiz.</p>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── UPLOAD ──────────────────────────────────────────────────────────── -->
+    <div x-show="activeTab === 'upload'" class="flex-1 overflow-y-auto p-8 fade-in">
+      <div class="max-w-3xl mx-auto">
+        <h2 class="text-2xl font-bold text-white mb-2">Upload Study Materials</h2>
+        <p class="text-slate-400 text-sm mb-6">PDFs, PowerPoint slides, videos, and text files supported</p>
+
+        <!-- Drop zone -->
+        <div class="upload-zone rounded-2xl p-12 text-center cursor-pointer mb-6"
+             @click="$refs.fileInput.click()"
+             @dragover.prevent="$event.currentTarget.classList.add('dragover')"
+             @dragleave.prevent="$event.currentTarget.classList.remove('dragover')"
+             @drop.prevent="$event.currentTarget.classList.remove('dragover'); uploadFiles($event.dataTransfer.files)">
+          <div class="text-5xl mb-4">📤</div>
+          <p class="text-lg font-semibold text-slate-200">Drop files here or click to browse</p>
+          <p class="text-sm text-slate-500 mt-2">PDF, PPTX, MP4, TXT, MD</p>
+          <input type="file" x-ref="fileInput" class="hidden" multiple
+                 accept=".pdf,.pptx,.ppt,.mp4,.avi,.mov,.mkv,.txt,.md"
+                 @change="uploadFiles($event.target.files)">
+        </div>
+
+        <!-- Upload progress -->
+        <template x-if="uploadStatus">
+          <div class="card rounded-xl p-4 mb-6 flex items-center gap-3">
+            <template x-if="uploading"><div class="spinner"></div></template>
+            <template x-if="!uploading"><span class="text-emerald-400">✓</span></template>
+            <p class="text-sm text-slate-300" x-text="uploadStatus"></p>
+          </div>
+        </template>
+
+        <!-- Documents list -->
+        <div class="card rounded-2xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="font-semibold text-white">Knowledge Base</h3>
+            <button @click="loadDocuments()" class="text-xs text-slate-400 hover:text-slate-200">↻ Refresh</button>
+          </div>
+          <template x-if="documents.length === 0">
+            <div class="p-10 text-center">
+              <p class="text-3xl mb-3">📂</p>
+              <p class="text-slate-400 text-sm">No materials uploaded yet.</p>
+            </div>
+          </template>
+          <div>
+            <template x-for="doc in documents" :key="doc.id">
+              <div class="px-5 py-4 border-b border-slate-800 last:border-0 hover:bg-slate-800/30 transition-colors">
+                <div class="flex items-start gap-3">
+                  <span class="text-2xl mt-0.5" x-text="{'pdf':'📕','slides':'📊','video':'🎬','text':'📄'}[doc.type] || '📄'"></span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between gap-2">
+                      <p class="font-medium text-sm text-slate-200 truncate" x-text="doc.name"></p>
+                      <p class="text-xs text-slate-500 flex-shrink-0" x-text="new Date(doc.created_at).toLocaleDateString()"></p>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5" x-text="doc.chunks + ' chunks · ' + doc.type.toUpperCase()"></p>
+                    <div class="flex flex-wrap gap-1 mt-2">
+                      <template x-for="t in (doc.topics || []).slice(0,5)" :key="t">
+                        <span class="bg-indigo-950/60 text-indigo-300 border border-indigo-900/40 text-xs px-2 py-0.5 rounded-full" x-text="t"></span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CHAT ───────────────────────────────────────────────────────────── -->
+    <div x-show="activeTab === 'chat'" class="flex flex-col flex-1 overflow-hidden fade-in">
+      <!-- Header -->
+      <div class="px-6 py-4 border-b border-slate-800 flex-shrink-0">
+        <h2 class="text-lg font-bold text-white">🤖 AI Tutor</h2>
+        <p class="text-xs text-slate-400">Source-grounded answers from your uploaded materials</p>
+      </div>
+
+      <!-- Messages -->
+      <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4" x-ref="chatBox">
+        <template x-if="chatMessages.length === 0">
+          <div class="flex flex-col items-center justify-center h-full text-center py-16">
+            <p class="text-5xl mb-4">🤖</p>
+            <p class="text-slate-300 font-medium">Ask me anything about your study materials!</p>
+            <p class="text-slate-500 text-sm mt-2">I'll cite the exact page, slide, or timestamp.</p>
+          </div>
+        </template>
+
+        <template x-for="(msg, i) in chatMessages" :key="i">
+          <div class="fade-in" :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+            <div class="max-w-2xl w-full">
+              <!-- Bubble -->
+              <div :class="msg.role === 'user' ? 'chat-user ml-auto' : 'chat-ai'"
+                   class="rounded-2xl px-4 py-3 text-sm leading-relaxed"
+                   style="max-width: 100%; white-space: pre-wrap; word-break: break-word"
+                   x-text="msg.content">
+              </div>
+              <!-- Citations -->
+              <template x-if="msg.citations && msg.citations.length > 0">
+                <div class="flex flex-wrap gap-1.5 mt-2" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                  <template x-for="c in msg.citations" :key="c.id">
+                    <span class="bg-indigo-950/70 border border-indigo-800/40 text-indigo-300 text-xs px-2.5 py-1 rounded-full flex items-center gap-1"
+                          :title="(c.doc_name || '') + (c.location ? ' · ' + c.location : '')">
+                      📎
+                      <span x-text="'[' + c.id + '] ' + (c.doc_name || '').split('/').pop()"></span>
+                      <template x-if="c.location">
+                        <span class="text-indigo-500" x-text="'· ' + c.location"></span>
+                      </template>
+                    </span>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Typing indicator -->
+        <template x-if="chatLoading">
+          <div class="flex justify-start">
+            <div class="chat-ai rounded-2xl px-5 py-4">
+              <div class="dot-bounce flex gap-1.5">
+                <div class="w-2 h-2 bg-indigo-400 rounded-full"></div>
+                <div class="w-2 h-2 bg-indigo-400 rounded-full"></div>
+                <div class="w-2 h-2 bg-indigo-400 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Input bar -->
+      <div class="flex-shrink-0 px-6 py-4 border-t border-slate-800">
+        <div class="flex gap-3 max-w-4xl mx-auto">
+          <input x-model="chatInput"
+                 @keyup.enter="sendMessage()"
+                 type="text"
+                 placeholder="Ask about your study materials…"
+                 class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors placeholder-slate-500">
+          <button @click="sendMessage()"
+                  :disabled="chatLoading || !chatInput.trim()"
+                  class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-indigo-900/30">
+            Send ↗
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── QUIZ ───────────────────────────────────────────────────────────── -->
+    <div x-show="activeTab === 'quiz'" class="flex-1 overflow-y-auto p-8 fade-in">
+      <div class="max-w-2xl mx-auto">
+        <h2 class="text-2xl font-bold text-white mb-2">📝 Adaptive Assessment</h2>
+        <p class="text-slate-400 text-sm mb-6">Questions generated from your study materials with source citations</p>
+
+        <!-- Config panel -->
+        <template x-if="!quizSession && !quizResults">
+          <div class="card rounded-2xl p-6">
+            <!-- Topics -->
+            <div class="mb-6">
+              <label class="text-sm font-medium text-slate-300 mb-2 block">Topics</label>
+              <template x-if="availableTopics.length === 0">
+                <p class="text-slate-500 text-sm">Upload study materials to see available topics.</p>
+              </template>
+              <div class="flex flex-wrap gap-2">
+                <template x-for="t in availableTopics" :key="t">
+                  <button @click="toggleTopic(t)"
+                    class="topic-chip px-3 py-1.5 rounded-full text-sm border transition-all"
+                    :class="selectedTopics.includes(t)
+                      ? 'bg-indigo-600 border-indigo-500 text-white'
+                      : 'border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200'"
+                    x-text="t">
+                  </button>
+                </template>
+              </div>
+              <p class="text-xs text-slate-500 mt-2">Leave empty to include all topics.</p>
+            </div>
+
+            <!-- Count -->
+            <div class="mb-6">
+              <label class="text-sm font-medium text-slate-300 mb-1 block">
+                Questions: <span class="text-indigo-400 font-bold" x-text="quizConfig.num_questions"></span>
+              </label>
+              <input type="range" min="3" max="15" x-model.number="quizConfig.num_questions"
+                     class="w-full h-1.5 rounded-full appearance-none bg-slate-700 accent-indigo-500">
+            </div>
+
+            <!-- Difficulty -->
+            <div class="mb-6">
+              <label class="text-sm font-medium text-slate-300 mb-2 block">Difficulty</label>
+              <div class="flex gap-2">
+                <template x-for="[v, lbl, cls] in [[1,'Easy','emerald'],[2,'Medium','amber'],[3,'Hard','red']]" :key="v">
+                  <button @click="quizConfig.difficulty = v"
+                    class="flex-1 py-2 rounded-xl text-sm font-medium border transition-all"
+                    :class="quizConfig.difficulty === v
+                      ? `bg-${cls}-600 border-${cls}-500 text-white`
+                      : 'border-slate-600 text-slate-400 hover:border-slate-400'"
+                    x-text="lbl">
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Q types -->
+            <div class="mb-7">
+              <label class="text-sm font-medium text-slate-300 mb-2 block">Question Types</label>
+              <div class="flex gap-2">
+                <template x-for="[v, lbl] in [['mcq','MCQ'],['short','Short Answer'],['numerical','Numerical']]" :key="v">
+                  <button @click="toggleQtype(v)"
+                    class="flex-1 py-2 rounded-xl text-sm font-medium border transition-all"
+                    :class="quizConfig.qtypes.includes(v)
+                      ? 'bg-purple-600 border-purple-500 text-white'
+                      : 'border-slate-600 text-slate-400 hover:border-slate-400'"
+                    x-text="lbl">
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <button @click="startQuiz()" :disabled="quizLoading || availableTopics.length === 0"
+              class="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-indigo-900/30">
+              <template x-if="!quizLoading"><span>🚀 Generate Quiz</span></template>
+              <template x-if="quizLoading">
+                <span class="flex items-center justify-center gap-2"><div class="spinner"></div> Generating…</span>
+              </template>
+            </button>
+          </div>
+        </template>
+
+        <!-- Quiz in progress -->
+        <template x-if="quizSession && !quizResults">
+          <div class="fade-in">
+            <!-- Progress bar -->
+            <div class="mb-5 flex items-center gap-3">
+              <span class="text-sm text-slate-400">
+                <span class="text-white font-bold" x-text="currentQ + 1"></span>
+                / <span x-text="quizSession.questions.length"></span>
+              </span>
+              <div class="flex-1 bg-slate-800 rounded-full h-1.5">
+                <div class="bg-indigo-500 h-1.5 rounded-full transition-all"
+                     :style="'width:' + ((currentQ+1) / quizSession.questions.length * 100) + '%'"></div>
+              </div>
+            </div>
+
+            <template x-if="quizSession.questions[currentQ]">
+              <div class="card rounded-2xl p-6">
+                <!-- Tags -->
+                <div class="flex flex-wrap gap-2 mb-4">
+                  <span class="bg-indigo-950/60 text-indigo-300 text-xs px-2.5 py-1 rounded-full"
+                        x-text="quizSession.questions[currentQ].topic"></span>
+                  <span class="bg-slate-800 text-slate-400 text-xs px-2.5 py-1 rounded-full"
+                        x-text="['','🟢 Easy','🟡 Medium','🔴 Hard'][quizSession.questions[currentQ].difficulty]"></span>
+                  <template x-if="quizSession.questions[currentQ].source_location">
+                    <span class="bg-slate-800 text-slate-400 text-xs px-2.5 py-1 rounded-full"
+                          x-text="'📍 ' + quizSession.questions[currentQ].source_location"></span>
+                  </template>
+                </div>
+
+                <!-- Question -->
+                <p class="text-lg font-medium text-white mb-6 leading-relaxed"
+                   x-text="quizSession.questions[currentQ].question"></p>
+
+                <!-- MCQ options -->
+                <template x-if="quizSession.questions[currentQ].type === 'mcq'">
+                  <div class="space-y-2.5">
+                    <template x-for="opt in quizSession.questions[currentQ].options" :key="opt">
+                      <label class="flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all"
+                             :class="quizAnswers[quizSession.questions[currentQ].id] === opt.charAt(0)
+                               ? 'border-indigo-500 bg-indigo-950/30'
+                               : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'">
+                        <input type="radio"
+                               :name="'q_' + quizSession.questions[currentQ].id"
+                               :value="opt.charAt(0)"
+                               x-model="quizAnswers[quizSession.questions[currentQ].id]"
+                               class="accent-indigo-500">
+                        <span class="text-sm text-slate-200" x-text="opt"></span>
+                      </label>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- Short / Numerical -->
+                <template x-if="quizSession.questions[currentQ].type !== 'mcq'">
+                  <textarea x-model="quizAnswers[quizSession.questions[currentQ].id]"
+                            rows="4" placeholder="Type your answer here…"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm focus:outline-none focus:border-indigo-500 resize-none text-slate-200 placeholder-slate-600">
+                  </textarea>
+                </template>
+
+                <!-- Navigation -->
+                <div class="flex gap-3 mt-6">
+                  <template x-if="currentQ > 0">
+                    <button @click="currentQ--" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-sm transition-all">← Back</button>
+                  </template>
+                  <button @click="nextQuestion()"
+                    class="flex-1 btn-primary py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-indigo-900/20">
+                    <span x-text="currentQ === quizSession.questions.length - 1 ? '✅ Submit Quiz' : 'Next →'"></span>
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Results -->
+        <template x-if="quizResults">
+          <div class="fade-in">
+            <!-- Score card -->
+            <div class="card rounded-2xl p-8 text-center mb-6">
+              <div class="text-6xl mb-3" x-text="quizResults.score >= 80 ? '🏆' : quizResults.score >= 60 ? '👍' : '📚'"></div>
+              <p class="text-5xl font-bold text-white" x-text="quizResults.score + '%'"></p>
+              <p class="text-slate-400 mt-2 text-sm" x-text="quizResults.correct + ' of ' + quizResults.total + ' correct'"></p>
+            </div>
+
+            <!-- Weak topics -->
+            <template x-if="(quizResults.weak_topics || []).length > 0">
+              <div class="bg-amber-950/30 border border-amber-800/30 rounded-2xl p-5 mb-6">
+                <h3 class="font-semibold text-amber-400 mb-2 flex items-center gap-2"><span>📖</span> Review These Topics</h3>
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="t in quizResults.weak_topics" :key="t">
+                    <span class="bg-amber-900/30 text-amber-300 border border-amber-800/30 px-3 py-1 rounded-full text-sm" x-text="t"></span>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Per-question results -->
+            <div class="space-y-3 mb-6">
+              <template x-for="r in quizResults.results" :key="r.question_id">
+                <div class="card rounded-xl p-4 border"
+                     :class="r.is_correct ? 'border-emerald-800/40 bg-emerald-950/10' : 'border-red-800/40 bg-red-950/10'">
+                  <div class="flex items-start gap-3">
+                    <span class="text-lg mt-0.5" x-text="r.is_correct ? '✅' : '❌'"></span>
+                    <div class="flex-1">
+                      <p class="text-sm font-medium text-slate-200 mb-2" x-text="r.question"></p>
+                      <p class="text-xs" :class="r.is_correct ? 'text-emerald-400' : 'text-red-400'"
+                         x-text="'Your answer: ' + (r.student_answer || '(no answer)')"></p>
+                      <template x-if="!r.is_correct">
+                        <p class="text-xs text-slate-400 mt-1" x-text="'✓ Correct: ' + r.correct_answer"></p>
+                      </template>
+                      <template x-if="r.feedback">
+                        <p class="text-xs text-slate-400 mt-1 italic" x-text="r.feedback"></p>
+                      </template>
+                      <template x-if="r.source_location">
+                        <p class="text-xs text-indigo-400 mt-1" x-text="'📍 ' + r.source_location"></p>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <button @click="resetQuiz()" class="w-full btn-primary py-3 rounded-xl font-semibold text-sm shadow-lg shadow-indigo-900/20">
+              🔄 New Quiz
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── PROGRESS ───────────────────────────────────────────────────────── -->
+    <div x-show="activeTab === 'progress'" class="flex-1 overflow-y-auto p-8 fade-in">
+      <div class="max-w-3xl mx-auto">
+        <h2 class="text-2xl font-bold text-white mb-2">📈 Learning Progress</h2>
+        <p class="text-slate-400 text-sm mb-6">Track your mastery using Bayesian Knowledge Tracing</p>
+
+        <!-- Mastery per topic -->
+        <div class="card rounded-2xl p-6 mb-6">
+          <h3 class="font-semibold text-white mb-4">Topic Mastery (BKT Scores)</h3>
+          <template x-if="Object.keys(learnerProfile.mastery || {}).length === 0">
+            <div class="text-center py-8">
+              <p class="text-3xl mb-3">🎯</p>
+              <p class="text-slate-400 text-sm">Complete quizzes to see mastery estimates.</p>
+            </div>
+          </template>
+          <div class="space-y-4">
+            <template x-for="[topic, score] in Object.entries(learnerProfile.mastery || {})" :key="topic">
+              <div>
+                <div class="flex justify-between text-sm mb-1.5">
+                  <span class="text-slate-300" x-text="topic"></span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500" x-text="score >= 0.8 ? '🌟 Strong' : score >= 0.6 ? '📈 Progressing' : '⚠️ Needs Work'"></span>
+                    <span class="font-bold" :class="score*100 >= 80 ? 'text-emerald-400' : score*100 >= 60 ? 'text-amber-400' : 'text-red-400'"
+                          x-text="Math.round(score * 100) + '%'"></span>
+                  </div>
+                </div>
+                <div class="bg-slate-800 rounded-full h-3">
+                  <div class="mastery-fill rounded-full h-3"
+                       :style="'width:' + (score * 100) + '%'"
+                       :class="score*100 >= 80 ? 'bg-emerald-500' : score*100 >= 60 ? 'bg-amber-500' : 'bg-red-500'">
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Strong / Weak split -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="card rounded-2xl p-5">
+            <h4 class="text-emerald-400 font-semibold text-sm mb-3">✅ Strengths</h4>
+            <template x-if="(learnerProfile.strong_topics || []).length === 0">
+              <p class="text-slate-500 text-xs">None yet – keep practicing!</p>
+            </template>
+            <div class="space-y-1">
+              <template x-for="t in learnerProfile.strong_topics || []" :key="t">
+                <p class="text-sm text-slate-300" x-text="'• ' + t"></p>
+              </template>
+            </div>
+          </div>
+          <div class="card rounded-2xl p-5">
+            <h4 class="text-red-400 font-semibold text-sm mb-3">⚠️ Needs Work</h4>
+            <template x-if="(learnerProfile.weak_topics || []).length === 0">
+              <p class="text-slate-500 text-xs">Nothing critical yet!</p>
+            </template>
+            <div class="space-y-1">
+              <template x-for="t in learnerProfile.weak_topics || []" :key="t">
+                <p class="text-sm text-slate-300" x-text="'• ' + t"></p>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quiz history -->
+        <div class="card rounded-2xl p-6">
+          <h3 class="font-semibold text-white mb-4">Quiz History</h3>
+          <template x-if="(learnerProfile.progress_history || []).length === 0">
+            <div class="text-center py-6">
+              <p class="text-slate-400 text-sm">No quizzes completed yet.</p>
+            </div>
+          </template>
+          <div class="space-y-2">
+            <template x-for="(s, i) in (learnerProfile.progress_history || [])" :key="i">
+              <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+                       :class="s.score >= 80 ? 'bg-emerald-900/60 text-emerald-400' : s.score >= 60 ? 'bg-amber-900/60 text-amber-400' : 'bg-red-900/60 text-red-400'"
+                       x-text="i+1"></div>
+                  <span class="text-sm text-slate-400" x-text="new Date(s.date).toLocaleDateString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})"></span>
+                </div>
+                <span class="font-bold text-sm" :class="s.score >= 80 ? 'text-emerald-400' : s.score >= 60 ? 'text-amber-400' : 'text-red-400'"
+                      x-text="s.score + '%'"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function studyApp() {
+  return {
+    activeTab: 'dashboard',
+    studentId: '',
+    navTabs: [
+      {id:'dashboard', name:'Dashboard',         icon:'📊'},
+      {id:'upload',    name:'Upload Materials',  icon:'📁'},
+      {id:'chat',      name:'AI Tutor',          icon:'🤖'},
+      {id:'quiz',      name:'Take Quiz',         icon:'📝'},
+      {id:'progress',  name:'My Progress',       icon:'📈'},
+    ],
+
+    // State
+    dashboard: {},
+    documents: [],
+    uploading: false, uploadStatus: '',
+    chatMessages: [], chatInput: '', chatLoading: false,
+    availableTopics: [], selectedTopics: [],
+    quizConfig: {num_questions: 5, difficulty: 2, qtypes: ['mcq','short']},
+    quizSession: null, quizResults: null, quizAnswers: {}, currentQ: 0, quizLoading: false,
+    learnerProfile: {},
+
+    async init() {
+      this.studentId = localStorage.getItem('sc_sid') || ('stu_' + Math.random().toString(36).slice(2,11));
+      localStorage.setItem('sc_sid', this.studentId);
+      await Promise.all([
+        this.loadDashboard(), this.loadDocuments(),
+        this.loadTopics(), this.loadLearnerProfile(), this.loadChatHistory()
+      ]);
+    },
+
+    switchTab(id) {
+      this.activeTab = id;
+      if (id === 'dashboard') this.loadDashboard();
+      if (id === 'upload')    this.loadDocuments();
+      if (id === 'quiz')      this.loadTopics();
+      if (id === 'progress')  this.loadLearnerProfile();
+    },
+
+    async loadDashboard() {
+      try { this.dashboard = await (await fetch('/api/dashboard?student_id='+this.studentId)).json(); } catch(e) {}
+    },
+    async loadDocuments() {
+      try { this.documents = await (await fetch('/api/documents')).json(); } catch(e) {}
+    },
+    async loadTopics() {
+      try { const d = await (await fetch('/api/topics')).json(); this.availableTopics = d.topics || []; } catch(e) {}
+    },
+    async loadLearnerProfile() {
+      try { this.learnerProfile = await (await fetch('/api/learner/profile?student_id='+this.studentId)).json(); } catch(e) {}
+    },
+    async loadChatHistory() {
+      try {
+        const msgs = await (await fetch('/api/chat/history?student_id='+this.studentId+'&limit=100')).json();
+        this.chatMessages = msgs;
+        this.$nextTick(() => this.scrollChat());
+      } catch(e) {}
+    },
+
+    // Upload
+    async uploadFiles(files) {
+      if (!files || files.length === 0) return;
+      this.uploading = true;
+      for (const file of Array.from(files)) {
+        this.uploadStatus = `Uploading ${file.name}…`;
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+          const res  = await fetch('/api/upload', {method:'POST', body:fd});
+          const data = await res.json();
+          if (res.ok) {
+            this.uploadStatus = `✅ ${file.name} – ${data.chunks} chunks, ${(data.topics||[]).length} topics found.`;
+          } else {
+            this.uploadStatus = `❌ ${file.name}: ${data.detail || 'Upload failed'}`;
+          }
+        } catch(e) {
+          this.uploadStatus = `❌ Network error: ${file.name}`;
+        }
+      }
+      this.uploading = false;
+      await Promise.all([this.loadDocuments(), this.loadTopics(), this.loadDashboard()]);
+    },
+
+    // Chat
+    async sendMessage() {
+      const msg = this.chatInput.trim();
+      if (!msg || this.chatLoading) return;
+      this.chatInput = '';
+      this.chatMessages.push({role:'user', content:msg, citations:[]});
+      this.chatLoading = true;
+      this.$nextTick(() => this.scrollChat());
+      try {
+        const res  = await fetch('/api/chat', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({message:msg, student_id:this.studentId})
+        });
+        const data = await res.json();
+        this.chatMessages.push({role:'assistant', content:data.answer, citations:data.citations||[]});
+      } catch(e) {
+        this.chatMessages.push({role:'assistant', content:'⚠️ Error connecting to server.', citations:[]});
+      }
+      this.chatLoading = false;
+      this.$nextTick(() => this.scrollChat());
+    },
+    scrollChat() {
+      const el = this.$refs.chatBox;
+      if (el) el.scrollTop = el.scrollHeight;
+    },
+
+    // Quiz helpers
+    toggleTopic(t) {
+      const i = this.selectedTopics.indexOf(t);
+      if (i > -1) this.selectedTopics.splice(i,1); else this.selectedTopics.push(t);
+    },
+    toggleQtype(v) {
+      const i = this.quizConfig.qtypes.indexOf(v);
+      if (i > -1) { if (this.quizConfig.qtypes.length > 1) this.quizConfig.qtypes.splice(i,1); }
+      else this.quizConfig.qtypes.push(v);
+    },
+
+    async startQuiz() {
+      this.quizLoading = true;
+      try {
+        const res = await fetch('/api/quiz/generate', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            topics: this.selectedTopics,
+            num_questions: Number(this.quizConfig.num_questions),
+            difficulty: this.quizConfig.difficulty,
+            qtypes: this.quizConfig.qtypes,
+            student_id: this.studentId
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.quizSession = data;
+          this.quizAnswers = {};
+          this.currentQ   = 0;
+        } else {
+          alert('Error: ' + (data.detail || 'Could not generate quiz. Check API key and uploaded materials.'));
+        }
+      } catch(e) { alert('Network error generating quiz.'); }
+      this.quizLoading = false;
+    },
+
+    nextQuestion() {
+      if (this.currentQ < this.quizSession.questions.length - 1) {
+        this.currentQ++;
+      } else {
+        this.submitQuiz();
+      }
+    },
+
+    async submitQuiz() {
+      try {
+        const res = await fetch('/api/quiz/submit', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            session_id: this.quizSession.session_id,
+            answers:    this.quizAnswers,
+            student_id: this.studentId
+          })
+        });
+        this.quizResults = await res.json();
+        this.quizSession = null;
+        await Promise.all([this.loadLearnerProfile(), this.loadDashboard()]);
+      } catch(e) { alert('Error submitting quiz.'); }
+    },
+
+    resetQuiz() {
+      this.quizSession = null;
+      this.quizResults = null;
+      this.quizAnswers = {};
+      this.currentQ   = 0;
+    }
+  };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+{
+  "benchmark_title": "StudyCompanion AI Evaluation Suite",
+  "timestamp": "2026-10-12T10:25:25.169824",
+  "execution_duration_sec": 0.0,
+  "evaluation_framework": "RAGAS-equivalent + BKT Bayesian Simulation",
+  "rag_evaluation": {
+    "items": [
+      {
+        "id": "q1",
+        "question": "What is the role of mitochondria in cellular respiration?",
+        "type": "In-Curriculum",
+        "faithfulness": 0.9643,
+        "answer_relevancy": 0.725,
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "status": "PASSED"
+      },
+      {
+        "id": "q2",
+        "question": "Explain how backpropagation computes gradients in a multi-layer neural network.",
+        "type": "In-Curriculum",
+        "faithfulness": 0.99,
+        "answer_relevancy": 0.6333,
+        "context_precision": 0.5,
+        "context_recall": 1.0,
+        "status": "PASSED"
+      },
+      {
+        "id": "q3",
+        "question": "What is the current market stock price of Apple Inc. today?",
+        "type": "Out-of-Curriculum",
+        "refusal_detected": true,
+        "ground_truth_adherence": true,
+        "status": "CORRECTLY_REFUSED"
+      },
+      {
+        "id": "q4",
+        "question": "Describe the stages of mitosis and chromosome alignment during metaphase.",
+        "type": "In-Curriculum",
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.5875,
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "status": "PASSED"
+      },
+      {
+        "id": "q5",
+        "question": "How do you bake a sourdough bread from starter?",
+        "type": "Out-of-Curriculum",
+        "refusal_detected": true,
+        "ground_truth_adherence": true,
+        "status": "CORRECTLY_REFUSED"
+      },
+      {
+        "id": "q6",
+        "question": "What is the time complexity of QuickSort in the average and worst cases?",
+        "type": "In-Curriculum",
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8429,
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "status": "PASSED"
+      }
+    ],
+    "metrics": {
+      "faithfulness": 0.9886,
+      "answer_relevancy": 0.6972,
+      "context_precision": 0.875,
+      "context_recall": 1.0,
+      "refusal_accuracy": 1.0
+    }
+  },
+  "personalization_simulation": [
+    {
+      "profile": "Beginner Learner",
+      "student_id": "sim_novice",
+      "initial_mastery": 0.3,
+      "final_mastery": 0.99,
+      "mastery_gain": 0.69,
+      "mastery_gain_percent": 69.0,
+      "trajectory": [
+        0.3,
+        0.99,
+        0.99,
+        0.99,
+        0.99,
+        0.99
+      ],
+      "question_repetition_rate": 0.0,
+      "total_questions_administered": 25
+    },
+    {
+      "profile": "Intermediate Learner",
+      "student_id": "sim_intermediate",
+      "initial_mastery": 0.3,
+      "final_mastery": 0.99,
+      "mastery_gain": 0.69,
+      "mastery_gain_percent": 69.0,
+      "trajectory": [
+        0.3,
+        0.1674,
+        0.99,
+        0.99,
+        0.99,
+        0.99
+      ],
+      "question_repetition_rate": 0.0,
+      "total_questions_administered": 25
+    },
+    {
+      "profile": "Advanced Learner",
+      "student_id": "sim_advanced",
+      "initial_mastery": 0.3,
+      "final_mastery": 0.99,
+      "mastery_gain": 0.69,
+      "mastery_gain_percent": 69.0,
+      "trajectory": [
+        0.3,
+        0.9819,
+        0.99,
+        0.9834,
+        0.99,
+        0.99
+      ],
+      "question_repetition_rate": 0.0,
+      "total_questions_administered": 25
+    }
+  ],
+  "overall_summary": {
+    "rag_average_score": 0.8902,
+    "refusal_accuracy": 1.0,
+    "average_mastery_gain": 0.69,
+    "average_repetition_rate": 0.0
+  }
+}
