@@ -10,13 +10,23 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-import google.generativeai as genai
-import chromadb
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
+try:
+    import chromadb
+except ImportError:
+    chromadb = None
 
 # ── Config ────────────────────────────────────────────────────────────────────
 API_KEY = os.getenv("GEMINI_API_KEY", "")
-if API_KEY:
-    genai.configure(api_key=API_KEY)
+if API_KEY and genai:
+    try:
+        genai.configure(api_key=API_KEY)
+    except Exception as e:
+        print(f"GenAI configure error: {e}")
 MODEL_NAME = "gemini-2.0-flash"
 EMBED_MODEL = "models/text-embedding-004"
 UPLOAD_DIR = Path("uploads")

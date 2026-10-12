@@ -1,5 +1,5 @@
 app = "studycompanion-ai"
-primary_region = "lax"
+primary_region = "jnb"
 
 [build]
 
@@ -23,10 +23,6 @@ primary_region = "lax"
   memory = "1gb"
   cpu_kind = "shared"
   cpus = 1
-
-[mounts]
-  source = "studycompanion_data"
-  destination = "/app/uploads"
 
 [[statics]]
   guest_path = "/app/frontend"
